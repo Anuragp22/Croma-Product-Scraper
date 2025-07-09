@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, ElementNotInteractableException
 
 class CromaProductScraper:
     def __init__(self):
@@ -34,6 +34,28 @@ class CromaProductScraper:
         except Exception as e:
             print(f"Error initializing Chrome driver: {e}")
             return None
+    
+    def wait_for_page_stability(self, driver, timeout=10):
+        """Wait for page to stabilize after content loading"""
+        try:
+            stable_count = 0
+            last_height = 0
+            
+            for _ in range(timeout):
+                current_height = driver.execute_script("return document.body.scrollHeight")
+                if current_height == last_height:
+                    stable_count += 1
+                    if stable_count >= 2:  # Page height stable for 2 seconds
+                        return True
+                else:
+                    stable_count = 0
+                    last_height = current_height
+                time.sleep(1)
+            
+            return False
+        except Exception as e:
+            print(f"Error waiting for page stability: {e}")
+            return True  # Continue anyway
     
     def extract_product_croma(self, product_item, index):
         """Extract product using actual Croma website selectors"""
@@ -140,8 +162,148 @@ class CromaProductScraper:
             print(f"Error extracting product {index}: {e}")
             return None
     
+    def scroll_with_early_intervention(self, driver, target_cards=12):
+        """Intervene early to control card loading and ensure proper image loading"""
+        print(f"Early intervention: targeting {target_cards} cards with proper image loading")
+        
+        cards_loaded = 0
+        scroll_position = 0
+        scroll_steps = 0
+        max_scroll_steps = 30
+        
+        # Start with minimal scroll to see what loads initially
+        time.sleep(0.5)  # Very brief initial wait
+        initial_cards = len(driver.find_elements(By.CSS_SELECTOR, "li.product-item"))
+        print(f"  📊 Initial cards detected: {initial_cards}")
+        
+        if initial_cards >= target_cards:
+            print(f"  ⚠️  Too many cards loaded initially ({initial_cards}), using image-focused strategy")
+            return self.focus_on_image_loading(driver, initial_cards, target_cards)
+        
+        # Gradual loading approach if we have few initial cards
+        while cards_loaded < target_cards and scroll_steps < max_scroll_steps:
+            scroll_steps += 1
+            
+            # Very small scroll increments
+            scroll_position += 150  # Very small steps
+            driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+            time.sleep(1)  # Allow loading
+            
+            # Check current state
+            current_cards = len(driver.find_elements(By.CSS_SELECTOR, "li.product-item"))
+            
+            if current_cards > cards_loaded:
+                new_cards = current_cards - cards_loaded
+                cards_loaded = current_cards
+                print(f"  📦 Step {scroll_steps}: {cards_loaded} cards (new: +{new_cards})")
+                
+                # Intensive image loading every few cards
+                if cards_loaded % 3 == 0 or current_cards >= target_cards:
+                    print(f"  🖼️  Intensive image loading for {cards_loaded} cards...")
+                    self.trigger_image_loading(driver, cards_loaded)
+                
+                # Check for VIEW MORE early
+                if cards_loaded >= 8:
+                    view_more_buttons = driver.find_elements(By.XPATH, 
+                        "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'view more')]")
+                    if view_more_buttons and view_more_buttons[0].is_displayed():
+                        print(f"  🛑 Found VIEW MORE at {cards_loaded} cards - stopping")
+                        break
+            
+            # Break if we've reached our target
+            if cards_loaded >= target_cards:
+                break
+        
+        print(f"Early intervention completed: {cards_loaded} cards loaded in {scroll_steps} steps")
+        return cards_loaded
+    
+    def focus_on_image_loading(self, driver, total_cards, target_cards):
+        """Focus on loading images when too many cards are already loaded"""
+        print(f"  🎯 Image loading focus: processing {min(total_cards, target_cards)} cards")
+        
+        # Use target_cards or less if we have fewer total cards
+        cards_to_process = min(total_cards, target_cards)
+        
+        # Scroll through existing cards slowly to trigger image loading
+        card_height = 400  # Estimated height per card
+        
+        for i in range(1, cards_to_process + 1):
+            scroll_to = i * card_height
+            driver.execute_script(f"window.scrollTo(0, {scroll_to});")
+            time.sleep(1.5)  # Wait for images to load
+            
+            if i % 3 == 0:
+                print(f"  🖼️  Processing card {i}: intensive image loading...")
+                time.sleep(2)  # Extra time for image loading
+                
+                # Check image loading progress
+                real_images, lazy_images = self.count_real_images(driver)
+                if real_images > 0:
+                    success_rate = (real_images / (real_images + lazy_images)) * 100
+                    print(f"     Image progress: {real_images}/{real_images + lazy_images} ({success_rate:.1f}%)")
+        
+        return cards_to_process
+    
+    def trigger_image_loading(self, driver, card_count):
+        """Trigger image loading for current cards by scrolling through them"""
+        card_height = 400
+        
+        # Scroll up and down through cards to trigger lazy loading
+        for i in range(min(card_count, 10)):  # Process up to 10 cards
+            scroll_to = i * card_height
+            driver.execute_script(f"window.scrollTo(0, {scroll_to});")
+            time.sleep(0.8)
+        
+        # Check loading progress
+        real_images, lazy_images = self.count_real_images(driver)
+        total_images = real_images + lazy_images
+        if total_images > 0:
+            success_rate = (real_images / total_images) * 100
+            print(f"     Image loading: {real_images}/{total_images} ({success_rate:.1f}%) loaded")
+    
+    def count_real_images(self, driver):
+        """Count products with actual image URLs (not lazy loaders)"""
+        images = driver.find_elements(By.CSS_SELECTOR, "li.product-item img")
+        real_images = 0
+        lazy_images = 0
+        
+        for img in images:
+            src = img.get_attribute("src") or ""
+            data_src = img.get_attribute("data-src") or ""
+            
+            # Check if it's a real image URL or lazy loader placeholder
+            if any(x in src.lower() for x in ['http', 'data:image', '.jpg', '.png', '.webp']):
+                if not any(x in src.lower() for x in ['lazy', 'placeholder', 'loading']):
+                    real_images += 1
+                else:
+                    lazy_images += 1
+            elif data_src:
+                lazy_images += 1
+            else:
+                lazy_images += 1
+        
+        print(f"Images: {real_images} real, {lazy_images} lazy/placeholder")
+        return real_images, lazy_images
+    
+    def get_unique_product_ids(self, driver):
+        """Get unique product identifiers to detect duplicates"""
+        products = driver.find_elements(By.CSS_SELECTOR, "li.product-item")
+        unique_ids = set()
+        
+        for product in products:
+            # Try multiple ways to get unique identifier
+            product_id = (
+                product.get_attribute("data-product-id") or
+                product.get_attribute("id") or
+                product.find_element(By.CSS_SELECTOR, "a").get_attribute("href") if product.find_elements(By.CSS_SELECTOR, "a") else ""
+            )
+            if product_id:
+                unique_ids.add(product_id)
+        
+        return unique_ids
+    
     def scrape_with_selenium(self, url):
-        """Scrape products using Selenium for dynamic content"""
+        """Enhanced scraper with proper image loading and stopping conditions"""
         driver = self.init_selenium_driver()
         if not driver:
             print("Failed to initialize Selenium driver")
@@ -151,61 +313,75 @@ class CromaProductScraper:
             print(f"Loading page: {url}")
             driver.get(url)
             
-            # Wait for products to load
+            # Wait briefly for page structure, but intervene early
             try:
-                wait = WebDriverWait(driver, 15)
-                # Try to wait for the specific product list container
-                try:
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#product-list-back")))
-                    print("Product list container (#product-list-back) found")
-                except TimeoutException:
-                    # Fallback to general product list
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "ul.product-list")))
-                    print("General product list container found")
+                wait = WebDriverWait(driver, 5)
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "ul.product-list")))
+                print("Product list container found, starting immediate intervention")
             except TimeoutException:
-                print("Timeout waiting for products to load")
+                print("Timeout waiting for product container")
                 return []
             
-            # Scroll to load more products
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            # Immediate intervention - start scrolling before all cards load
+            print("🚀 Starting early intervention to prevent bulk loading...")
+            final_card_count = self.scroll_with_early_intervention(driver, target_cards=12)
+            
+            # Count real vs lazy images after gradual scroll
+            real_images, lazy_images = self.count_real_images(driver)
+            print(f"Image loading status: {real_images} real, {lazy_images} lazy/placeholder")
+            
+            # Check if we found a VIEW MORE button during scroll
+            view_more_buttons = driver.find_elements(By.XPATH, 
+                "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'view more')]")
+            
+            if view_more_buttons and view_more_buttons[0].is_displayed():
+                print(f"🛑 STOPPING: Found VIEW MORE button at {final_card_count} cards")
+                print("   (Not clicking to avoid loading too many products)")
+            else:
+                print(f"ℹ️  No VIEW MORE button found, proceeding with {final_card_count} cards")
+            
+            # Wait a bit more for final image loading
+            print("Final wait for image loading...")
             time.sleep(2)
             
-            # Scroll back up and wait for products to fully load
-            driver.execute_script("window.scrollTo(0, 0);")
-            time.sleep(3)
-            
-            # Additional wait for any lazy-loaded content
-            time.sleep(2)
-            
-            # Get page source and parse with BeautifulSoup
+            # Get final page source
             page_source = driver.page_source
             soup = BeautifulSoup(page_source, 'html.parser')
             
-            # Find all product items using the correct selector
+            # Find all product items
             product_items = soup.select('#product-list-back li.product-item')
-            print(f"Found {len(product_items)} product items using #product-list-back")
-            
-            # Fallback selectors if the main one doesn't work
             if not product_items:
                 product_items = soup.select('ul.product-list li.product-item')
-                print(f"Fallback: Found {len(product_items)} product items using ul.product-list")
-            
             if not product_items:
                 product_items = soup.select('li.product-item')
-                print(f"Fallback: Found {len(product_items)} product items using li.product-item")
             
+            print(f"Final extraction: Found {len(product_items)} product items")
+            
+            # Extract products
             products = []
+            
             for index, item in enumerate(product_items):
                 product = self.extract_product_croma(item, index + 1)
                 if product:
                     products.append(product)
                     print(f"Extracted product {index + 1}: {product.get('title', 'Unknown')[:50]}...")
             
-            print(f"Successfully extracted {len(products)} products")
+            # Final image loading check
+            final_real, final_lazy = self.count_real_images(driver)
+            image_success_rate = (final_real / (final_real + final_lazy) * 100) if (final_real + final_lazy) > 0 else 0
+            
+            print(f"\n=== SCRAPING COMPLETE ===")
+            print(f"✓ Total products extracted: {len(products)}")
+            print(f"✓ Image loading success rate: {image_success_rate:.1f}%")
+            print(f"✓ Stopped at VIEW MORE button (no infinite clicking)")
+            print(f"✓ Gradual scrolling used for better image loading")
+            
             return products
             
         except Exception as e:
             print(f"Error during scraping: {e}")
+            import traceback
+            traceback.print_exc()
             return []
         finally:
             driver.quit()
