@@ -110,6 +110,12 @@ The scraper implements sophisticated techniques:
 ### Backend Setup
 ```bash
 cd backend
+python -m venv venv
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
