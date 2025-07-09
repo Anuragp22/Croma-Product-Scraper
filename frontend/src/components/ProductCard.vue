@@ -153,6 +153,26 @@
           Buy Now
         </button>
       </div>
+
+      <!-- Product URL Section -->
+      <div class="product-url-section" v-if="product.url">
+        <a 
+          :href="product.url" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="product-url-link"
+          @click.stop
+          title="View on Croma website"
+        >
+          <svg viewBox="0 0 24 24" class="url-icon">
+            <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+          </svg>
+          <span class="url-text">View on Croma</span>
+          <svg viewBox="0 0 24 24" class="external-icon">
+            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+        </a>
+      </div>
     </div>
 
     <!-- Hover Glow Effect -->
@@ -750,6 +770,51 @@ export default {
   box-shadow: 0 8px 20px rgba(0, 255, 136, 0.3);
 }
 
+/* Product URL Section */
+.product-url-section {
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  border: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.product-url-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00ff88;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.product-url-link:hover {
+  color: #00cc6a;
+}
+
+.url-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.url-text {
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.external-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .product-image-container {
@@ -770,6 +835,26 @@ export default {
   
   .original-price {
     font-size: 14px;
+  }
+  
+  .product-url-section {
+    margin-top: 12px;
+    padding: 10px 16px;
+  }
+  
+  .product-url-link {
+    font-size: 12px;
+    gap: 6px;
+  }
+  
+  .url-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .external-icon {
+    width: 12px;
+    height: 12px;
   }
 }
 

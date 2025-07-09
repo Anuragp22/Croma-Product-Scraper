@@ -284,6 +284,51 @@ class CromaProductScraper:
         
         print(f"Images: {real_images} real, {lazy_images} lazy/placeholder")
         return real_images, lazy_images
+
+    def count_real_images_in_range(self, driver, start_index, end_index):
+        """Count real images only within a specific range of products (for NEW products only)"""
+        try:
+            # Find all product items
+            product_elements = driver.find_elements(By.CSS_SELECTOR, "li.product-item")
+            
+            # Get only the products in the specified range
+            target_products = product_elements[start_index:end_index]
+            
+            real_images = 0
+            lazy_images = 0
+            
+            for product in target_products:
+                try:
+                    # Find image within this specific product
+                    img_elements = product.find_elements(By.CSS_SELECTOR, "img")
+                    
+                    for img in img_elements:
+                        try:
+                            src = img.get_attribute('src') or ''
+                            data_src = img.get_attribute('data-src') or ''
+                            
+                            # Check if it's a real image URL or lazy loader placeholder
+                            if any(x in src.lower() for x in ['http', 'data:image', '.jpg', '.png', '.webp']):
+                                if not any(x in src.lower() for x in ['lazy', 'placeholder', 'loading']):
+                                    real_images += 1
+                                else:
+                                    lazy_images += 1
+                            elif data_src:
+                                lazy_images += 1
+                            else:
+                                lazy_images += 1
+                                
+                        except Exception:
+                            lazy_images += 1
+                            
+                except Exception:
+                    lazy_images += 1
+                    
+            return real_images, lazy_images
+            
+        except Exception as e:
+            print(f"Error counting images in range: {e}")
+            return 0, 0
     
     def get_unique_product_ids(self, driver):
         """Get unique product identifiers to detect duplicates"""
@@ -385,6 +430,243 @@ class CromaProductScraper:
             return []
         finally:
             driver.quit()
+    
+    def scrape_with_view_more(self, url):
+        """
+        Scrape additional products by clicking VIEW MORE button once
+        for the load-more functionality in the frontend
+        """
+        print("🔄 Starting VIEW MORE scraping session...")
+        
+        driver = self.init_selenium_driver()
+        if not driver:
+            print("Failed to initialize Selenium driver for VIEW MORE")
+            return []
+        
+        try:
+            print(f"Loading page for VIEW MORE: {url}")
+            driver.get(url)
+            
+            # Wait for initial load
+            print("⏳ Waiting for page to load...")
+            time.sleep(5)
+            
+            # Scroll to load content first
+            print("📜 Performing initial scroll to load content...")
+            for i in range(3):
+                driver.execute_script("window.scrollBy(0, 800);")
+                time.sleep(1.5)
+            
+            # 🔥 COUNT ORIGINAL PRODUCTS BEFORE CLICKING VIEW MORE
+            original_products = driver.find_elements(By.CSS_SELECTOR, "li.product-item")
+            original_count = len(original_products)
+            print(f"📊 Original products on page: {original_count}")
+            
+            # Look for VIEW MORE button with multiple strategies
+            view_more_button = None
+            view_more_selectors = [
+                "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'view more')]",
+                "//button[contains(@class, 'view-more')]",
+                "//button[contains(@class, 'load-more')]", 
+                "//div[contains(@class, 'view-more')]//button",
+                "//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'view more')]"
+            ]
+            
+            print("🔍 Looking for VIEW MORE button...")
+            for selector in view_more_selectors:
+                try:
+                    elements = driver.find_elements(By.XPATH, selector)
+                    for element in elements:
+                        if element.is_displayed() and element.is_enabled():
+                            view_more_button = element
+                            print(f"✅ Found VIEW MORE button with selector: {selector}")
+                            break
+                    if view_more_button:
+                        break
+                except Exception as e:
+                    continue
+            
+            if view_more_button:
+                # Scroll to button and click
+                print("👆 Clicking VIEW MORE button...")
+                driver.execute_script("arguments[0].scrollIntoView(true);", view_more_button)
+                time.sleep(2)
+                
+                try:
+                    # Try JavaScript click (more reliable)
+                    driver.execute_script("arguments[0].click();", view_more_button)
+                    print("✅ Successfully clicked VIEW MORE button")
+                except Exception as e:
+                    print(f"⚠️ Error clicking VIEW MORE: {e}")
+                    return []
+                
+                print("🔄 Waiting for new products to load...")
+                time.sleep(5)  # Wait for new content to load
+                
+                # 🔥 COUNT NEW PRODUCTS AFTER CLICKING VIEW MORE
+                new_products = driver.find_elements(By.CSS_SELECTOR, "li.product-item")
+                new_count = len(new_products)
+                added_count = new_count - original_count
+                print(f"📊 Products after VIEW MORE: {new_count} (added: {added_count})")
+                
+                if added_count > 0:
+                    # Use enhanced image loading ONLY for NEW products
+                    print("🖼️ Using enhanced image loading for NEW products only...")
+                    self.enhanced_image_loading_for_view_more(driver, original_count, new_count)
+                else:
+                    print("⚠️ No new products loaded after clicking VIEW MORE")
+                    return []
+                
+            else:
+                print("⚠️ No VIEW MORE button found - returning empty")
+                return []
+            
+            # Wait for final image processing
+            print("⏱️ Final wait for image processing...")
+            time.sleep(3)
+            
+            # Get final page source and extract products
+            print("📊 Extracting NEW products only...")
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+            
+            # Find all product items
+            product_items = soup.select('#product-list-back li.product-item')
+            if not product_items:
+                product_items = soup.select('ul.product-list li.product-item')
+            if not product_items:
+                product_items = soup.select('li.product-item')
+            
+            print(f"Found {len(product_items)} total product items")
+            
+            # 🔥 ONLY EXTRACT NEW PRODUCTS (skip the original ones)
+            new_product_items = product_items[original_count:]  # Skip original products
+            print(f"📦 Extracting {len(new_product_items)} NEW products (skipping first {original_count})")
+            
+            products = []
+            for index, item in enumerate(new_product_items):
+                product = self.extract_product_croma(item, original_count + index + 1)
+                if product:
+                    products.append(product)
+                    
+                    # Log progress every 6 products
+                    if (index + 1) % 6 == 0:
+                        print(f"📊 Progress: {index + 1}/{len(new_product_items)} NEW products processed")
+            
+            # 🔥 CHECK IMAGE LOADING SUCCESS FOR NEW PRODUCTS ONLY
+            final_new_count = len(driver.find_elements(By.CSS_SELECTOR, "li.product-item"))
+            real_images, lazy_images = self.count_real_images_in_range(driver, original_count, final_new_count)
+            success_rate = (real_images / (real_images + lazy_images) * 100) if (real_images + lazy_images) > 0 else 0
+            
+            print(f"🎯 VIEW MORE scraping completed:")
+            print(f"   📦 NEW products extracted: {len(products)}")
+            print(f"   🖼️ NEW products real images: {real_images}")
+            print(f"   📊 NEW products image success rate: {success_rate:.1f}%")
+            
+            return products
+            
+        except Exception as e:
+            print(f"❌ VIEW MORE scraping failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+            
+        finally:
+            print("🧹 Cleaning up VIEW MORE scraper...")
+            driver.quit()
+    
+    def enhanced_image_loading_for_view_more(self, driver, start_index=0, end_index=None):
+        """
+        Apply enhanced image loading to FULL page but track progress for NEW products only
+        start_index: index of first new product 
+        end_index: index of last product to process
+        """
+        print("  🎯 Starting enhanced image loading (full page for lazy loading compatibility)...")
+        
+        # Count current products
+        current_products = driver.find_elements(By.CSS_SELECTOR, "li.product-item")
+        total_products = len(current_products)
+        
+        if end_index is None:
+            end_index = total_products
+            
+        new_products_count = end_index - start_index
+        print(f"  📦 Tracking {new_products_count} NEW products (positions {start_index+1} to {end_index})")
+        print(f"  🌐 Scrolling FULL page to trigger lazy loading properly")
+        
+        # Use the same gradual scrolling technique as initial scraper
+        card_height = 400  # Estimated height per card
+        
+        # 🔄 SCROLL FROM TOP TO ENSURE LAZY LOADING WORKS
+        # Start from top and scroll through ALL products (lazy loading expects this)
+        print("  🔄 Starting from top for proper lazy loading sequence...")
+        driver.execute_script("window.scrollTo(0, 0);")
+        time.sleep(1)
+        
+        # First pass - scroll through ALL products (but focus on triggering NEW ones)
+        for i in range(1, min(total_products + 1, 50)):  # Process up to 50 products total
+            scroll_to = i * card_height
+            driver.execute_script(f"window.scrollTo(0, {scroll_to});")
+            time.sleep(1.2)  # Slightly faster since we're doing more products
+            
+            # Intensive image loading checkpoints - focus on NEW products area
+            if i >= start_index and i % 3 == 0:
+                new_card_number = i - start_index
+                print(f"  🖼️ NEW Product Area - Card {new_card_number}: Image loading checkpoint...")
+                time.sleep(2)  # Extra pause for image loading
+                
+                # Trigger image loading for current viewport
+                self.trigger_image_loading_view_more(driver, i)
+                
+                # Check progress for NEW products only
+                real_images, lazy_images = self.count_real_images_in_range(driver, start_index, end_index)
+                total_images = real_images + lazy_images
+                if total_images > 0:
+                    success_rate = (real_images / total_images) * 100
+                    print(f"     NEW Products Progress: {real_images}/{total_images} images loaded ({success_rate:.1f}%)")
+        
+        # Second pass - focus specifically on NEW products area
+        print("  🔄 Second pass: intensive focus on NEW products area...")
+        for i in range(start_index, min(end_index, start_index + 20)):  # Focus on NEW products
+            scroll_to = (i + 1) * card_height
+            driver.execute_script(f"window.scrollTo(0, {scroll_to});")
+            time.sleep(1.0)
+            
+            # Extra trigger for problematic images
+            if i % 2 == 0:  # Every other product
+                self.trigger_image_loading_view_more(driver, i + 1)
+        
+        # Final image loading check for NEW products only
+        final_real, final_lazy = self.count_real_images_in_range(driver, start_index, end_index)
+        final_total = final_real + final_lazy
+        if final_total > 0:
+            final_success_rate = (final_real / final_total) * 100
+            print(f"  ✅ Enhanced loading complete for NEW products: {final_real}/{final_total} images ({final_success_rate:.1f}%)")
+        else:
+            print("  ⚠️ No images found in NEW products range")
+    
+    def trigger_image_loading_view_more(self, driver, current_card):
+        """
+        Trigger image loading using the same technique as initial scraper
+        """
+        card_height = 400
+        
+        # Scroll up and down around current position to trigger lazy loading
+        base_position = current_card * card_height
+        
+        # Small up/down movements to trigger image loading
+        positions = [
+            base_position - 200,
+            base_position,
+            base_position + 200,
+            base_position - 100,
+            base_position + 100
+        ]
+        
+        for pos in positions:
+            if pos >= 0:  # Don't scroll to negative positions
+                driver.execute_script(f"window.scrollTo(0, {pos});")
+                time.sleep(0.3)  # Quick movements to trigger loading
     
     def scrape_page_elements(self, url):
         """Scrape page elements for debugging"""

@@ -4,6 +4,9 @@ import redis
 import json
 import logging
 from datetime import datetime
+import threading
+import time
+from scraper import CromaProductScraper
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +23,121 @@ try:
 except redis.ConnectionError:
     logger.error("Failed to connect to Redis. Make sure Redis server is running on localhost:6379")
     r = None
+
+# Global scraper instance
+scraper = CromaProductScraper()
+scraping_in_progress = False
+
+def auto_scrape_products():
+    """Automatically scrape products on startup"""
+    global scraping_in_progress
+    if scraping_in_progress:
+        return
+    
+    scraping_in_progress = True
+    logger.info("🚀 Auto-scraping products on startup...")
+    
+    try:
+        url = "https://www.croma.com/televisions-accessories/c/997"
+        products = scraper.scrape_with_selenium(url)
+        
+        if products:
+            # Store in Redis
+            data = {
+                "products": products,
+                "total_products": len(products),
+                "scraped_at": datetime.now().isoformat(),
+                "source": "auto_scrape",
+                "scrape_type": "initial_load"
+            }
+            
+            if r:
+                r.set("products", json.dumps(products))
+                r.set("scraped_content", json.dumps(data))
+                logger.info(f"✅ Auto-scraped and stored {len(products)} products")
+            else:
+                logger.error("❌ Redis not available for storing scraped data")
+        else:
+            logger.error("❌ Auto-scraping failed - no products returned")
+            
+    except Exception as e:
+        logger.error(f"❌ Auto-scraping error: {e}")
+    finally:
+        scraping_in_progress = False
+
+def scrape_more_products():
+    """Scrape additional products by clicking VIEW MORE"""
+    global scraping_in_progress
+    if scraping_in_progress:
+        return []
+    
+    scraping_in_progress = True
+    logger.info("🔄 Scraping more products with VIEW MORE...")
+    
+    try:
+        # Modify scraper to click VIEW MORE once and get additional products
+        url = "https://www.croma.com/televisions-accessories/c/997"
+        additional_products = scraper.scrape_with_view_more(url)
+        
+        if additional_products:
+            # Get existing products
+            existing_data = []
+            if r:
+                existing_products_json = r.get("products")
+                if existing_products_json:
+                    existing_data = json.loads(existing_products_json)
+            
+            # Better duplicate detection - create a set of existing product signatures
+            existing_signatures = set()
+            for existing in existing_data:
+                # Create unique signature using title + price + brand
+                signature = f"{existing.get('title', '').strip()}|{existing.get('current_price', '')}|{existing.get('brand', '')}"
+                existing_signatures.add(signature)
+            
+            logger.info(f"📊 Existing products: {len(existing_data)}, New scraped: {len(additional_products)}")
+            
+            # Combine with new products (avoiding duplicates)
+            all_products = existing_data.copy()
+            new_count = 0
+            duplicates_skipped = 0
+            
+            for product in additional_products:
+                # Create signature for new product
+                product_signature = f"{product.get('title', '').strip()}|{product.get('current_price', '')}|{product.get('brand', '')}"
+                
+                if product_signature not in existing_signatures:
+                    all_products.append(product)
+                    existing_signatures.add(product_signature)  # Add to set for next iterations
+                    new_count += 1
+                else:
+                    duplicates_skipped += 1
+            
+            logger.info(f"🔍 Duplicate check: {new_count} new, {duplicates_skipped} duplicates skipped")
+            
+            # Store updated data
+            if r and new_count > 0:
+                data = {
+                    "products": all_products,
+                    "total_products": len(all_products),
+                    "scraped_at": datetime.now().isoformat(),
+                    "source": "view_more_scrape",
+                    "scrape_type": "load_more",
+                    "new_products_added": new_count
+                }
+                
+                r.set("products", json.dumps(all_products))
+                r.set("scraped_content", json.dumps(data))
+                logger.info(f"✅ Added {new_count} new products (total: {len(all_products)})")
+                
+                return additional_products[-new_count:] if new_count > 0 else []
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"❌ VIEW MORE scraping error: {e}")
+        return []
+    finally:
+        scraping_in_progress = False
 
 @app.route("/", methods=["GET"])
 def home():
@@ -91,6 +209,76 @@ def get_scraped_content():
             "message": "Internal server error"
         }), 500
 
+@app.route("/products/load-more", methods=["POST"])
+def load_more_products():
+    """
+    Load more products by scraping with VIEW MORE button.
+    This endpoint triggers live scraping to get additional products.
+    """
+    global scraping_in_progress
+    
+    if scraping_in_progress:
+        return jsonify({
+            "success": False,
+            "message": "Scraping already in progress. Please wait."
+        }), 429
+    
+    try:
+        logger.info("🔄 Starting VIEW MORE scraping synchronously...")
+        
+        # Run scraping synchronously for better reliability
+        result = scrape_more_products()
+        
+        # Get the updated products immediately
+        if r:
+            products_data = r.get("products")
+            if products_data:
+                products = json.loads(products_data)
+                
+                # Get metadata about the scraping
+                content_data = r.get("scraped_content")
+                metadata = {}
+                if content_data:
+                    content = json.loads(content_data)
+                    metadata = {
+                        "new_products_added": content.get("new_products_added", 0),
+                        "total_products": content.get("total_products", len(products)),
+                        "scrape_type": content.get("scrape_type", "load_more"),
+                        "scraping_completed": True
+                    }
+                
+                logger.info(f"✅ VIEW MORE response: {len(products)} total products, {metadata.get('new_products_added', 0)} new")
+                
+                return jsonify({
+                    "success": True,
+                    "data": products,
+                    "metadata": metadata,
+                    "message": f"Successfully loaded {metadata.get('new_products_added', 0)} new products"
+                })
+        
+        return jsonify({
+            "success": False,
+            "message": "Failed to load more products - no data available"
+        }), 500
+        
+    except Exception as e:
+        logger.error(f"Error in load_more_products: {e}")
+        return jsonify({
+            "success": False,
+            "message": "Internal server error"
+        }), 500
+
+@app.route("/scraping/status", methods=["GET"])
+def scraping_status():
+    """Get current scraping status"""
+    global scraping_in_progress
+    
+    return jsonify({
+        "success": True,
+        "scraping_in_progress": scraping_in_progress,
+        "redis_available": r is not None
+    })
+
 @app.route("/products", methods=["GET"])
 def get_products():
     """
@@ -110,10 +298,13 @@ def get_products():
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 20, type=int)
         
+        # Support getting all products
+        get_all = request.args.get('all', 'false').lower() == 'true'
+        
         # Validate pagination parameters
         if page < 1:
             page = 1
-        if limit < 1 or limit > 50:
+        if not get_all and (limit < 1 or limit > 1000):
             limit = 20
         
         # Get products from Redis
@@ -127,23 +318,32 @@ def get_products():
         
         products = json.loads(products_data)
         
-        # Apply pagination
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_products = products[start_idx:end_idx]
-        
-        return jsonify({
-            "success": True,
-            "data": paginated_products,
-            "pagination": {
-                "page": page,
-                "limit": limit,
+        # Return all products or apply pagination
+        if get_all:
+            return jsonify({
+                "success": True,
+                "data": products,
                 "total_products": len(products),
-                "total_pages": (len(products) + limit - 1) // limit,
-                "has_next": end_idx < len(products),
-                "has_prev": page > 1
-            }
-        })
+                "all_products": True
+            })
+        else:
+            # Apply pagination
+            start_idx = (page - 1) * limit
+            end_idx = start_idx + limit
+            paginated_products = products[start_idx:end_idx]
+            
+            return jsonify({
+                "success": True,
+                "data": paginated_products,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total_products": len(products),
+                    "total_pages": (len(products) + limit - 1) // limit,
+                    "has_next": end_idx < len(products),
+                    "has_prev": page > 1
+                }
+            })
         
     except json.JSONDecodeError:
         return jsonify({
@@ -361,8 +561,9 @@ def internal_error(error):
         "message": "Internal server error"
     }), 500
 
-if __name__ == "__main__":
-    logger.info("Starting Croma Product API server...")
+def initialize_app():
+    """Initialize the app with auto-scraping"""
+    logger.info("🚀 Starting Croma Product API server with LIVE scraping...")
     logger.info("Available endpoints:")
     logger.info("  GET /                 - API information")
     logger.info("  GET /health           - Health check")
@@ -370,5 +571,21 @@ if __name__ == "__main__":
     logger.info("  GET /scraped-content  - Get complete scraped data")
     logger.info("  GET /products/search  - Search products")
     logger.info("  GET /products/filter  - Filter products")
+    logger.info("  POST /products/load-more - Load more products (LIVE)")
+    logger.info("  GET /scraping/status  - Get scraping status")
     
+    # Start auto-scraping in background
+    def startup_scrape():
+        time.sleep(3)  # Give the app time to start
+        logger.info("🔥 Starting automatic product scraping...")
+        auto_scrape_products()
+    
+    thread = threading.Thread(target=startup_scrape)
+    thread.daemon = True
+    thread.start()
+    
+    logger.info("✅ API server initialized with LIVE auto-scraping enabled!")
+
+if __name__ == "__main__":
+    initialize_app()
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -110,17 +110,41 @@
               <div class="filter-dropdown-container">
                 <button 
                   class="filter-btn" 
-                  :class="{ active: activeDropdown === 'categories' }"
+                  :class="{ active: selectedCategory || activeDropdown === 'categories' }"
                   @click="toggleDropdown('categories')"
                 >
                   Categories
                   <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                 </button>
                 <div v-if="activeDropdown === 'categories'" class="dropdown-menu">
-                  <div class="dropdown-item" @click="selectCategory('televisions')">Televisions</div>
-                  <div class="dropdown-item" @click="selectCategory('smart-tv')">Smart TV</div>
-                  <div class="dropdown-item" @click="selectCategory('led-tv')">LED TV</div>
-                  <div class="dropdown-item" @click="selectCategory('accessories')">Accessories</div>
+                  <div 
+                    class="dropdown-item" 
+                    :class="{ selected: selectedCategory === 'televisions' }"
+                    @click="selectCategory('televisions')"
+                  >
+                    Televisions
+                  </div>
+                  <div 
+                    class="dropdown-item"
+                    :class="{ selected: selectedCategory === 'smart-tv' }"
+                    @click="selectCategory('smart-tv')"
+                  >
+                    Smart TV
+                  </div>
+                  <div 
+                    class="dropdown-item"
+                    :class="{ selected: selectedCategory === 'led-tv' }"
+                    @click="selectCategory('led-tv')"
+                  >
+                    LED TV
+                  </div>
+                  <div 
+                    class="dropdown-item"
+                    :class="{ selected: selectedCategory === 'accessories' }"
+                    @click="selectCategory('accessories')"
+                  >
+                    Accessories
+                  </div>
                 </div>
               </div>
               
@@ -149,29 +173,87 @@
               <div class="filter-dropdown-container">
                 <button 
                   class="filter-btn" 
-                  :class="{ active: activeDropdown === 'price' }"
+                  :class="{ active: selectedPriceRange || activeDropdown === 'price' }"
                   @click="toggleDropdown('price')"
                 >
                   Price
                   <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
                 </button>
                 <div v-if="activeDropdown === 'price'" class="dropdown-menu">
-                  <div class="dropdown-item" @click="selectPriceRange('under-25000')">Under ₹25,000</div>
-                  <div class="dropdown-item" @click="selectPriceRange('25000-50000')">₹25,000 - ₹50,000</div>
-                  <div class="dropdown-item" @click="selectPriceRange('50000-100000')">₹50,000 - ₹1,00,000</div>
-                  <div class="dropdown-item" @click="selectPriceRange('above-100000')">Above ₹1,00,000</div>
+                  <div 
+                    class="dropdown-item" 
+                    :class="{ selected: selectedPriceRange === 'under-25000' }"
+                    @click="selectPriceRange('under-25000')"
+                  >
+                    Under ₹25,000
+                  </div>
+                  <div 
+                    class="dropdown-item" 
+                    :class="{ selected: selectedPriceRange === '25000-50000' }"
+                    @click="selectPriceRange('25000-50000')"
+                  >
+                    ₹25,000 - ₹50,000
+                  </div>
+                  <div 
+                    class="dropdown-item" 
+                    :class="{ selected: selectedPriceRange === '50000-100000' }"
+                    @click="selectPriceRange('50000-100000')"
+                  >
+                    ₹50,000 - ₹1,00,000
+                  </div>
+                  <div 
+                    class="dropdown-item" 
+                    :class="{ selected: selectedPriceRange === 'above-100000' }"
+                    @click="selectPriceRange('above-100000')"
+                  >
+                    Above ₹1,00,000
+                  </div>
                 </div>
               </div>
 
-              <button class="filter-btn" @click="toggleDropdown('screen')">
-                Screen Size (In Inches)
-                <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
-              </button>
+              <div class="filter-dropdown-container">
+                <button 
+                  class="filter-btn" 
+                  :class="{ active: selectedScreenSize || activeDropdown === 'screen' }"
+                  @click="toggleDropdown('screen')"
+                >
+                  Screen Size (In Inches)
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div v-if="activeDropdown === 'screen'" class="dropdown-menu">
+                  <div 
+                    v-for="size in availableScreenSizes" 
+                    :key="size"
+                    class="dropdown-item"
+                    :class="{ selected: selectedScreenSize === size }"
+                    @click="selectScreenSize(size)"
+                  >
+                    {{ size }}
+                  </div>
+                </div>
+              </div>
 
-              <button class="filter-btn" @click="toggleDropdown('delivery')">
-                Delivery Mode
-                <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
-              </button>
+              <div v-if="shouldShowDeliveryFilter" class="filter-dropdown-container">
+                <button 
+                  class="filter-btn" 
+                  :class="{ active: selectedDeliveryMode || activeDropdown === 'delivery' }"
+                  @click="toggleDropdown('delivery')"
+                >
+                  Delivery Mode
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                </button>
+                <div v-if="activeDropdown === 'delivery'" class="dropdown-menu">
+                  <div 
+                    v-for="mode in availableDeliveryModes" 
+                    :key="mode"
+                    class="dropdown-item"
+                    :class="{ selected: selectedDeliveryMode === mode }"
+                    @click="selectDeliveryMode(mode)"
+                  >
+                    {{ mode }}
+                  </div>
+                </div>
+              </div>
 
               <button class="filter-btn all-filters" @click="clearAllFilters">
                 <svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
@@ -199,6 +281,16 @@
         <!-- Active Filters -->
         <div class="active-filters" v-if="hasActiveFilters">
           <div 
+            v-if="selectedCategory" 
+            class="filter-tag"
+          >
+            Category: {{ selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1).replace('-', ' ') }}
+            <button @click="clearCategoryFilter" class="remove-filter">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          
+          <div 
             v-if="selectedBrand" 
             class="filter-tag"
           >
@@ -207,12 +299,45 @@
               <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
           </div>
+          
+          <div 
+            v-if="selectedPriceRange" 
+            class="filter-tag"
+          >
+            Price: {{ getPriceRangeLabel(selectedPriceRange) }}
+            <button @click="clearPriceFilter" class="remove-filter">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          
+          <div 
+            v-if="selectedScreenSize" 
+            class="filter-tag"
+          >
+            Screen: {{ selectedScreenSize }}
+            <button @click="clearScreenSizeFilter" class="remove-filter">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          
+          <div 
+            v-if="selectedDeliveryMode" 
+            class="filter-tag"
+          >
+            Delivery: {{ selectedDeliveryMode }}
+            <button @click="clearDeliveryModeFilter" class="remove-filter">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
         </div>
 
         <!-- Loading State -->
         <div v-if="loading" class="loading-container">
           <div class="loading-spinner"></div>
-          <p>Loading products...</p>
+          <p>{{ isScrapingInProgress ? 'Initial scrapping in progress...' : 'Loading products...' }}</p>
+          <p v-if="isScrapingInProgress" class="scraping-subtitle">
+            We're collecting fresh products from Croma. This may take a moment.
+          </p>
         </div>
 
         <!-- Error State -->
@@ -237,6 +362,25 @@
             @wishlist-toggle="handleWishlistToggle"
             @add-to-cart="addToCart"
           />
+        </div>
+
+        <!-- VIEW MORE Button -->
+        <div v-if="filteredProducts.length > 0 && !isSearchMode" class="view-more-section">
+          <button 
+            @click="loadMoreProducts" 
+            :disabled="isViewMoreDisabled"
+            class="view-more-btn"
+          >
+            <div v-if="loadingMore" class="loading-spinner-small"></div>
+            <svg v-else viewBox="0 0 24 24" class="view-more-icon">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            <span>{{ loadingMoreText }}</span>
+          </button>
+          <div v-if="loadMoreError" class="load-more-error">
+            {{ loadMoreError }}
+            <button @click="clearLoadMoreError" class="error-close-btn">×</button>
+          </div>
         </div>
 
         <!-- No Products State -->
@@ -288,43 +432,173 @@ export default {
       searchQuery: '',
       sortBy: '',
       selectedBrand: '',
+      selectedCategory: '',
+      selectedPriceRange: '',
+      selectedScreenSize: '',
+      selectedDeliveryMode: '',
       products: [],
       cartItems: [],
       loading: false,
       error: null,
       isSearchMode: false,
       availableBrands: [],
+      availableCategories: [],
+      availableScreenSizes: [],
       currentPage: 1,
       totalPages: 1,
-      activeDropdown: null
+      activeDropdown: null,
+      loadingMore: false,
+      loadMoreError: null,
+      isScrapingInProgress: false,
+      scrapingStatus: null,
+      availableDeliveryModes: [],
+      scrapingStatusInterval: null
     }
   },
   computed: {
     hasActiveFilters() {
-      return this.selectedBrand || this.isSearchMode
+      return this.selectedBrand || this.selectedCategory || this.selectedPriceRange || 
+             this.selectedScreenSize || this.selectedDeliveryMode || this.isSearchMode
     },
     filteredProducts() {
       let filtered = [...this.products]
       
+      // Brand filter
       if (this.selectedBrand) {
         filtered = filtered.filter(product => 
           product.brand?.toLowerCase().includes(this.selectedBrand.toLowerCase())
         )
       }
       
+      // Category filter
+      if (this.selectedCategory) {
+        filtered = filtered.filter(product => {
+          const title = product.title?.toLowerCase() || ''
+          const category = this.selectedCategory.toLowerCase()
+          
+          switch(category) {
+            case 'televisions':
+              return title.includes('tv') || title.includes('television')
+            case 'smart-tv':
+              return title.includes('smart') && (title.includes('tv') || title.includes('television'))
+            case 'led-tv':
+              return title.includes('led') && (title.includes('tv') || title.includes('television'))
+            case 'accessories':
+              return title.includes('remote') || title.includes('cable') || title.includes('mount') || 
+                     title.includes('stand') || title.includes('bracket')
+            default:
+              return true
+          }
+        })
+      }
+      
+      // Price range filter
+      if (this.selectedPriceRange) {
+        filtered = filtered.filter(product => {
+          const price = this.extractPrice(product.current_price)
+          
+          switch(this.selectedPriceRange) {
+            case 'under-25000':
+              return price < 25000
+            case '25000-50000':
+              return price >= 25000 && price <= 50000
+            case '50000-100000':
+              return price >= 50000 && price <= 100000
+            case 'above-100000':
+              return price > 100000
+            default:
+              return true
+          }
+        })
+      }
+      
+      // Screen size filter
+      if (this.selectedScreenSize) {
+        filtered = filtered.filter(product => {
+          const title = product.title?.toLowerCase() || ''
+          return title.includes(this.selectedScreenSize)
+        })
+      }
+      
+      // Delivery mode filter
+      if (this.selectedDeliveryMode) {
+        filtered = filtered.filter(product => {
+          const availability = product.availability?.toLowerCase() || ''
+          const deliveryMode = this.selectedDeliveryMode.toLowerCase()
+          
+          if (deliveryMode.includes('standard')) {
+            return availability.includes('standard') && availability.includes('delivery')
+          }
+          if (deliveryMode.includes('express')) {
+            return availability.includes('express') || availability.includes('fast')
+          }
+          if (deliveryMode.includes('free')) {
+            return availability.includes('free') && availability.includes('delivery')
+          }
+          if (deliveryMode.includes('next day')) {
+            return availability.includes('tomorrow') || availability.includes('next day')
+          }
+          if (deliveryMode.includes('pickup')) {
+            return availability.includes('pickup') || availability.includes('store')
+          }
+          
+          return true
+        })
+      }
+      
+      // Debug logging (can be removed in production)
+      if (this.products.length > 0) {
+        console.log(`🔍 Total products: ${this.products.length}, Filtered: ${filtered.length}`)
+        console.log(`🎛️ Active filters - Brand: ${this.selectedBrand}, Category: ${this.selectedCategory}, Price: ${this.selectedPriceRange}, Screen: ${this.selectedScreenSize}, Delivery: ${this.selectedDeliveryMode}`)
+      }
+      
       return filtered
+    },
+    loadingMoreText() {
+      if (this.isScrapingInProgress) {
+        return 'Initial Scraping in Progress...'
+      }
+      
+      if (!this.loadingMore) return 'VIEW MORE'
+      
+      // Show dynamic loading text
+      return 'Scraping new products...'
+    },
+    
+    shouldShowDeliveryFilter() {
+      return this.availableDeliveryModes.length > 0
+    },
+    
+    isViewMoreDisabled() {
+      return this.loadingMore || this.isScrapingInProgress
     }
   },
   async mounted() {
+    // Check scraping status first
+    await this.checkScrapingStatus()
+    
     await this.fetchProducts()
     this.extractBrands()
+    this.extractCategories()
+    this.extractScreenSizes()
+    this.extractDeliveryModes()
     
     // Close dropdowns when clicking outside
     document.addEventListener('click', this.handleClickOutside)
+    
+    // Set up periodic scraping status check
+    this.scrapingStatusInterval = setInterval(async () => {
+      if (this.loading || this.loadingMore) {
+        await this.checkScrapingStatus()
+      }
+    }, 3000) // Check every 3 seconds when loading
   },
   
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside)
+    if (this.scrapingStatusInterval) {
+      clearInterval(this.scrapingStatusInterval)
+    }
   },
   methods: {
     async fetchProducts() {
@@ -332,10 +606,15 @@ export default {
       this.error = null
       
       try {
-        const response = await axios.get('http://localhost:5000/products')
+        const response = await axios.get('http://localhost:5000/products?all=true')
         if (response.data.success) {
           this.products = response.data.data || []
           this.extractBrands()
+          this.extractCategories()
+          this.extractScreenSizes()
+          this.extractDeliveryModes()
+          
+          console.log(`🎯 INITIAL LOAD: Loaded ${this.products.length} products`)
         } else {
           throw new Error(response.data.message || 'Failed to fetch products')
         }
@@ -383,6 +662,36 @@ export default {
       this.availableBrands = Array.from(brands).sort()
     },
     
+    extractCategories() {
+      const categories = new Set(['Televisions', 'Smart TV', 'LED TV', 'Accessories'])
+      // You could also extract from product data if needed
+      this.availableCategories = Array.from(categories)
+    },
+    
+    extractScreenSizes() {
+      const screenSizes = new Set()
+      this.products.forEach(product => {
+        if (product.title) {
+          // Extract screen sizes like "32", "43", "55", "65" inch from titles
+          const matches = product.title.match(/(\d+)[\s-]?inch/gi) || 
+                         product.title.match(/(\d+)["]/g) ||
+                         product.title.match(/(\d+)\s*cm/gi)
+          
+          if (matches) {
+            matches.forEach(match => {
+              const size = match.replace(/[^\d]/g, '')
+              if (size && parseInt(size) >= 24 && parseInt(size) <= 85) {
+                screenSizes.add(`${size}"`)
+              }
+            })
+          }
+        }
+      })
+      this.availableScreenSizes = Array.from(screenSizes).sort((a, b) => 
+        parseInt(a) - parseInt(b)
+      )
+    },
+    
     selectBrand(brand) {
       this.selectedBrand = this.selectedBrand === brand ? '' : brand
       this.activeDropdown = null
@@ -390,6 +699,32 @@ export default {
     
     clearBrandFilter() {
       this.selectedBrand = ''
+    },
+    
+    clearCategoryFilter() {
+      this.selectedCategory = ''
+    },
+    
+    clearPriceFilter() {
+      this.selectedPriceRange = ''
+    },
+    
+    clearScreenSizeFilter() {
+      this.selectedScreenSize = ''
+    },
+    
+    clearDeliveryModeFilter() {
+      this.selectedDeliveryMode = ''
+    },
+    
+    getPriceRangeLabel(range) {
+      switch(range) {
+        case 'under-25000': return 'Under ₹25,000'
+        case '25000-50000': return '₹25,000 - ₹50,000'
+        case '50000-100000': return '₹50,000 - ₹1,00,000'
+        case 'above-100000': return 'Above ₹1,00,000'
+        default: return range
+      }
     },
     
     applySorting() {
@@ -428,19 +763,35 @@ export default {
     },
     
     selectCategory(category) {
-      console.log('Category selected:', category)
+      this.selectedCategory = this.selectedCategory === category ? '' : category
       this.activeDropdown = null
-      // Add category filtering logic here if needed
+      console.log('Category selected:', category)
     },
     
     selectPriceRange(range) {
-      console.log('Price range selected:', range)
+      this.selectedPriceRange = this.selectedPriceRange === range ? '' : range
       this.activeDropdown = null
-      // Add price filtering logic here if needed
+      console.log('Price range selected:', range)
+    },
+    
+    selectScreenSize(size) {
+      this.selectedScreenSize = this.selectedScreenSize === size ? '' : size
+      this.activeDropdown = null
+      console.log('Screen size selected:', size)
+    },
+    
+    selectDeliveryMode(mode) {
+      this.selectedDeliveryMode = this.selectedDeliveryMode === mode ? '' : mode
+      this.activeDropdown = null
+      console.log('Delivery mode selected:', mode)
     },
     
     clearAllFilters() {
       this.selectedBrand = ''
+      this.selectedCategory = ''
+      this.selectedPriceRange = ''
+      this.selectedScreenSize = ''
+      this.selectedDeliveryMode = ''
       this.searchQuery = ''
       this.sortBy = ''
       this.activeDropdown = null
@@ -471,6 +822,115 @@ export default {
       if (!filterSection) {
         this.activeDropdown = null
       }
+    },
+    
+    async loadMoreProducts() {
+      if (this.loadingMore) return
+      
+      // Check scraping status first
+      const scrapingStatus = await this.checkScrapingStatus()
+      if (this.isScrapingInProgress) {
+        this.loadMoreError = 'Initial scraping in progress. Please wait...'
+        return
+      }
+      
+      this.loadingMore = true
+      this.loadMoreError = null
+      
+      try {
+        console.log('🔄 Loading more products...')
+        const response = await axios.post('http://localhost:5000/products/load-more')
+        
+        if (response.data.success) {
+          const newProducts = response.data.data || []
+          const metadata = response.data.metadata || {}
+          
+          // Force immediate update with logging
+          const oldCount = this.products.length
+          this.products = newProducts
+          this.extractBrands()
+          this.extractCategories()
+          this.extractScreenSizes()
+          this.extractDeliveryModes() // Update delivery modes after loading more
+          
+          // Force Vue reactivity update
+          this.$nextTick(() => {
+            console.log(`✅ VIEW MORE: ${oldCount} → ${this.products.length} products`)
+            console.log(`📊 Added ${metadata.new_products_added || 0} new products`)
+            console.log(`🔄 UI should now show ${this.products.length} products`)
+          })
+          
+          if (metadata.new_products_added === 0) {
+            this.loadMoreError = "No new products found. You've reached the end!"
+          } else {
+            // Show success feedback briefly
+            setTimeout(() => {
+              if (metadata.new_products_added > 0) {
+                console.log(`🎉 Successfully added ${metadata.new_products_added} new products!`)
+              }
+            }, 100)
+          }
+        } else {
+          throw new Error(response.data.message || 'Failed to load more products')
+        }
+      } catch (error) {
+        console.error('Error loading more products:', error)
+        
+        if (error.response?.status === 429) {
+          this.loadMoreError = 'Scraping in progress. Please wait and try again.'
+        } else {
+          this.loadMoreError = error.response?.data?.message || 'Failed to load more products. Please try again.'
+        }
+      } finally {
+        this.loadingMore = false
+      }
+    },
+    
+    clearLoadMoreError() {
+      this.loadMoreError = null
+    },
+
+    async checkScrapingStatus() {
+      try {
+        const response = await axios.get('http://localhost:5000/scraping/status')
+        if (response.data.success) {
+          this.isScrapingInProgress = response.data.data.scraping_in_progress
+          this.scrapingStatus = response.data.data.status
+          return response.data.data
+        }
+      } catch (error) {
+        console.error('Error checking scraping status:', error)
+        this.isScrapingInProgress = false
+      }
+      return null
+    },
+
+    extractDeliveryModes() {
+      const deliveryModes = new Set()
+      this.products.forEach(product => {
+        if (product.availability && product.availability.trim()) {
+          // Extract delivery-related information from availability text
+          const availability = product.availability.toLowerCase()
+          if (availability.includes('delivery')) {
+            if (availability.includes('standard')) {
+              deliveryModes.add('Standard Delivery')
+            }
+            if (availability.includes('express') || availability.includes('fast')) {
+              deliveryModes.add('Express Delivery')
+            }
+            if (availability.includes('free')) {
+              deliveryModes.add('Free Delivery')
+            }
+            if (availability.includes('tomorrow') || availability.includes('next day')) {
+              deliveryModes.add('Next Day Delivery')
+            }
+          }
+          if (availability.includes('pickup') || availability.includes('store')) {
+            deliveryModes.add('Store Pickup')
+          }
+        }
+      })
+      this.availableDeliveryModes = Array.from(deliveryModes).sort()
     }
   }
 }
@@ -989,6 +1449,13 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+.scraping-subtitle {
+  font-size: 14px !important;
+  color: #00ff88 !important;
+  margin-top: 8px !important;
+  font-weight: 500;
+}
+
 .error-icon,
 .no-products-icon {
   width: 80px;
@@ -1042,7 +1509,96 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 24px;
-  margin-bottom: 48px;
+  margin-bottom: 32px;
+}
+
+/* VIEW MORE Section */
+.view-more-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 32px 0 48px 0;
+}
+
+.view-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, #00ff88, #00cc6a);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.view-more-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 255, 136, 0.4);
+  background: linear-gradient(135deg, #00cc6a, #00ff88);
+}
+
+.view-more-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.view-more-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top: 2px solid #000;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.load-more-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-close-btn {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.error-close-btn:hover {
+  background: rgba(255, 59, 48, 0.2);
 }
 
 /* Pagination */
